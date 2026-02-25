@@ -24,7 +24,7 @@ const io = socketIo(server, {
 // Middleware
 app.use(
   cors({
-    origin: "https://chat-app-frontend-livid-seven.vercel.app",
+    origin: "https://chat-application-xupo.vercel.app/",
     credentials: true,
   }),
 );
