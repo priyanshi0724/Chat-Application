@@ -12,10 +12,17 @@ const Message = require("./models/Message");
 const app = express();
 const server = http.createServer(app);
 
-// Socket.io setup with CORS
+// Update: allow multiple origins (Vercel and Localhost)
+const allowedOrigins = [
+  "https://chat-application-xupo.vercel.app",
+  "http://localhost:3000",
+  "http://localhost:5173" // For Vite users
+];
+
+// Socket.io setup
 const io = socketIo(server, {
   cors: {
-    origin: "https://chat-application-xupo.vercel.app/",
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
   },
@@ -24,43 +31,51 @@ const io = socketIo(server, {
 // Middleware
 app.use(
   cors({
-    origin: "https://chat-application-xupo.vercel.app/",
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.indexOf(origin) !== -1) {
+        callback(null, true);
+      } else {
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
     credentials: true,
-  }),
+  })
 );
 app.use(express.json());
 
-// MongoDB Connection
+// MongoDB Connection with error handling
 mongoose
   .connect(process.env.MONGODB_URI)
   .then(() => console.log("✅ MongoDB Connected Successfully!"))
-  .catch((err) => console.log("❌ MongoDB Connection Error:", err));
+  .catch((err) => {
+    console.error("❌ MongoDB Connection Error:", err.message);
+  });
 
 // Basic route
 app.get("/", (req, res) => {
   res.send("Chat Server is Running! 🚀");
 });
 
+// Health check route for Vercel
+app.get("/api/health", (req, res) => {
+  res.json({ status: "ok", uptime: process.uptime() });
+});
+
 // API: Get all previous messages
 app.get("/api/messages", async (req, res) => {
   try {
     const messages = await Message.find().sort({ timestamp: 1 }).limit(50);
-    console.log("Messages fetched:", messages.length);
     res.json(messages);
   } catch (error) {
-    console.error("Error fetching messages:", error);
-    res.status(500).json({
-      error: "Failed to fetch messages",
-      details: error.message,
-    });
+    res.status(500).json({ error: "Failed to fetch messages" });
   }
 });
+
 // Socket.io Connection Handler
 io.on("connection", (socket) => {
-  console.log("👤 New user connected:", socket.id);
+  console.log("👤 User connected:", socket.id);
 
   socket.on("user-joined", (username) => {
-    console.log(`${username} joined the chat`);
     socket.broadcast.emit("user-joined", username);
   });
 
@@ -77,24 +92,21 @@ io.on("connection", (socket) => {
         message: data.message,
         timestamp: newMessage.timestamp,
       });
-
-      console.log(`Message from ${data.username}: ${data.message}`);
     } catch (error) {
-      console.log("Error saving message:", error);
+      console.error("Error saving message:", error);
     }
   });
 
-  socket.on("typing", (username) => {
-    socket.broadcast.emit("user-typing", username);
-  });
-
   socket.on("disconnect", () => {
-    console.log("👋 User disconnected:", socket.id);
+    console.log("👋 User disconnected");
   });
 });
 
-// Server start karo
+// Server start
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {
   console.log(`🚀 Server running on port ${PORT}`);
 });
+
+// CRITICAL FIX FOR VERCEL: Export the app
+module.exports = app;
