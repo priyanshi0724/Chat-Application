@@ -15,7 +15,7 @@ const server = http.createServer(app);
 // Socket.io setup with CORS
 const io = socketIo(server, {
   cors: {
-    origin: "https://chat-app-frontend-livid-seven.vercel.app",
+    origin: "https://chat-application-xupo.vercel.app/",
     methods: ["GET", "POST"],
     credentials: true,
   },
